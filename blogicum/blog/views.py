@@ -1,10 +1,7 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count
-from django.http import Http404
 from django.urls import reverse_lazy
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, DeleteView
 )
@@ -24,9 +21,7 @@ class IndexView(ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        queryset = Post.published.all()
-        queryset = queryset.annotate(comment_count=Count('comments'))
-        return queryset
+        return Post.custom_obj.is_published().with_comment_count()
 
 
 class ProfileView(ListView):
@@ -35,12 +30,14 @@ class ProfileView(ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        queryset = Post.objects.filter(author=get_object_or_404(
+        author = get_object_or_404(
             User,
-            username=self.kwargs.get('username')),
-        ).order_by('-pub_date', 'title')
-        queryset = queryset.annotate(comment_count=Count('comments'))
-        return queryset
+            username=self.kwargs.get('username')
+        )
+        return (
+            Post.custom_obj.filter(author=author)
+            .order_by('-pub_date', 'title').with_comment_count()
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -76,17 +73,7 @@ class PostDetailView(DetailView):
     pk_url_kwarg = 'post_id'
 
     def get_queryset(self):
-        return Post.objects.all()
-
-    def dispatch(self, request, *args, **kwargs):
-        post = self.get_object()
-        if (
-            not post.is_published
-            or not post.category.is_published
-            or post.pub_date > timezone.now()
-        ) and request.user != post.author:
-            raise Http404()
-        return super().dispatch(request, *args, **kwargs)
+        return Post.custom_obj.get_post(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -160,9 +147,10 @@ class CategoryPostsView(ListView):
             Category.objects.filter(is_published=True),
             slug=self.kwargs.get('category_slug')
         )
-        queryset = Post.published.filter(category=self.category)
-        queryset = queryset.annotate(comment_count=Count('comments'))
-        return queryset
+        return (
+            Post.custom_obj.is_published().with_comment_count().
+            filter(category=self.category)
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

@@ -5,6 +5,10 @@ from .forms import User
 from .models import Post, Comment
 
 
+# По поводу миксина OnlyAuthorMixin:
+# Метод test_func() Используется в 4 представлениях, доработал логику
+# и теперь этот метод не встречается в представлениях вообще.
+# Думаю лучше его оставить
 class OnlyAuthorMixin(UserPassesTestMixin):
 
     def test_func(self):
