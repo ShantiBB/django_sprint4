@@ -1,9 +1,7 @@
-from django.contrib.auth.mixins import (
-    UserPassesTestMixin, LoginRequiredMixin
-)
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count
 from django.http import Http404
-from django.urls import reverse_lazy, reverse
+from django.urls import reverse_lazy
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -13,38 +11,11 @@ from django.views.generic import (
 
 from .forms import CommentForm, CustomUserCreationForm
 from .models import Post, Category, Comment
+from .mixins import (
+    OnlyAuthorMixin, CommentMixin, CustomSuccessUrlMixin
+)
 
 User = get_user_model()
-
-
-class OnlyAuthorMixin(UserPassesTestMixin):
-
-    def test_func(self):
-        obj = self.get_object()
-        return obj.author == self.request.user
-
-
-class CustomSuccessUrlMixin:
-    success_url_name = ''
-
-    def get_success_url(self):
-        post_url = 'blog:post_detail'
-        if self.success_url_name == 'post_id':
-            if self.model == Post:
-                post_kwargs = {'post_id': self.object.id}
-            else:
-                post_kwargs = {'post_id': self.object.post.id}
-        else:
-            post_url = 'blog:profile'
-            post_kwargs = {'username': self.request.user.username}
-        return reverse(post_url, kwargs=post_kwargs)
-
-
-class CommentMixin(CustomSuccessUrlMixin):
-    model = Comment
-    template_name = 'blog/comment.html'
-    pk_url_kwarg = 'comment_id'
-    fields = '__all__'
 
 
 class IndexView(ListView):
@@ -80,7 +51,7 @@ class ProfileView(ListView):
         return context
 
 
-class ProfileUpdateView(UserPassesTestMixin, UpdateView):
+class ProfileUpdateView(OnlyAuthorMixin, UpdateView):
     model = User
     template_name = 'blog/user.html'
     fields = [
@@ -98,10 +69,6 @@ class ProfileUpdateView(UserPassesTestMixin, UpdateView):
             User,
             username=self.kwargs.get('username')
         )
-
-    def test_func(self):
-        obj = self.get_object()
-        return obj == self.request.user
 
 
 class PostDetailView(DetailView):
